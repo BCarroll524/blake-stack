@@ -9,6 +9,9 @@ node_modules
 
 /build
 /public/build
+/api/index.js
+/api/index.js.map
+/api/_assets/
 .cache
 .env
 .vercel
@@ -20,3 +23,5 @@ node_modules
 /prisma/data.db-journal
 
 /app/styles/tailwind.css
+
+/api/**/*
