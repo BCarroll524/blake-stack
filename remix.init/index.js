@@ -3,7 +3,6 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 
-const toml = require("@iarna/toml");
 const PackageJson = require("@npmcli/package-json");
 const semver = require("semver");
 const YAML = require("yaml");
@@ -23,15 +22,6 @@ const cleanupCypressFiles = ({ fileEntries, isTypeScript, packageManager }) =>
 
     return [fs.writeFile(filePath, newContent)];
   });
-
-const cleanupDeployWorkflow = (deployWorkflow, deployWorkflowPath) => {
-  delete deployWorkflow.jobs.typecheck;
-  deployWorkflow.jobs.deploy.needs = deployWorkflow.jobs.deploy.needs.filter(
-    (need) => need !== "typecheck"
-  );
-
-  return [fs.writeFile(deployWorkflowPath, YAML.stringify(deployWorkflow))];
-};
 
 const cleanupVitestConfig = (vitestConfig, vitestConfigPath) => {
   const newVitestConfig = vitestConfig.replace(
@@ -128,16 +118,8 @@ const main = async ({ isTypeScript, packageManager, rootDirectory }) => {
   const FILE_EXTENSION = isTypeScript ? "ts" : "js";
 
   const README_PATH = path.join(rootDirectory, "README.md");
-  const FLY_TOML_PATH = path.join(rootDirectory, "fly.toml");
   const EXAMPLE_ENV_PATH = path.join(rootDirectory, ".env.example");
   const ENV_PATH = path.join(rootDirectory, ".env");
-  const DEPLOY_WORKFLOW_PATH = path.join(
-    rootDirectory,
-    ".github",
-    "workflows",
-    "deploy.yml"
-  );
-  const DOCKERFILE_PATH = path.join(rootDirectory, "Dockerfile");
   const CYPRESS_SUPPORT_PATH = path.join(rootDirectory, "cypress", "support");
   const CYPRESS_COMMANDS_PATH = path.join(
     CYPRESS_SUPPORT_PATH,
@@ -156,7 +138,7 @@ const main = async ({ isTypeScript, packageManager, rootDirectory }) => {
     `vitest.config.${FILE_EXTENSION}`
   );
 
-  const REPLACER = "indie-stack-template";
+  const REPLACER = "blake-stack";
 
   const DIR_NAME = path.basename(rootDirectory);
   const SUFFIX = getRandomString(2);
@@ -166,27 +148,19 @@ const main = async ({ isTypeScript, packageManager, rootDirectory }) => {
     .replace(/[^a-zA-Z0-9-_]/g, "-");
 
   const [
-    prodContent,
     readme,
     env,
-    dockerfile,
     cypressCommands,
     createUserCommand,
     deleteUserCommand,
-    deployWorkflow,
     vitestConfig,
     packageJson,
   ] = await Promise.all([
-    fs.readFile(FLY_TOML_PATH, "utf-8"),
     fs.readFile(README_PATH, "utf-8"),
     fs.readFile(EXAMPLE_ENV_PATH, "utf-8"),
-    fs.readFile(DOCKERFILE_PATH, "utf-8"),
     fs.readFile(CYPRESS_COMMANDS_PATH, "utf-8"),
     fs.readFile(CREATE_USER_COMMAND_PATH, "utf-8"),
     fs.readFile(DELETE_USER_COMMAND_PATH, "utf-8"),
-    readFileIfNotTypeScript(isTypeScript, DEPLOY_WORKFLOW_PATH, (s) =>
-      YAML.parse(s)
-    ),
     readFileIfNotTypeScript(isTypeScript, VITEST_CONFIG_PATH),
     PackageJson.load(rootDirectory),
   ]);
@@ -196,28 +170,16 @@ const main = async ({ isTypeScript, packageManager, rootDirectory }) => {
     `SESSION_SECRET="${getRandomString(16)}"`
   );
 
-  const prodToml = toml.parse(prodContent);
-  prodToml.app = prodToml.app.replace(REPLACER, APP_NAME);
-
   const newReadme = readme.replace(
     new RegExp(escapeRegExp(REPLACER), "g"),
     APP_NAME
   );
 
-  const newDockerfile = pm.lockfile
-    ? dockerfile.replace(
-        new RegExp(escapeRegExp("ADD package.json"), "g"),
-        `ADD package.json ${pm.lockfile}`
-      )
-    : dockerfile;
-
   updatePackageJson({ APP_NAME, isTypeScript, packageJson });
 
   const fileOperationPromises = [
-    fs.writeFile(FLY_TOML_PATH, toml.stringify(prodToml)),
     fs.writeFile(README_PATH, newReadme),
     fs.writeFile(ENV_PATH, newEnv),
-    fs.writeFile(DOCKERFILE_PATH, newDockerfile),
     ...cleanupCypressFiles({
       fileEntries: [
         [CYPRESS_COMMANDS_PATH, cypressCommands],
@@ -240,10 +202,6 @@ const main = async ({ isTypeScript, packageManager, rootDirectory }) => {
   ];
 
   if (!isTypeScript) {
-    fileOperationPromises.push(
-      ...cleanupDeployWorkflow(deployWorkflow, DEPLOY_WORKFLOW_PATH)
-    );
-
     fileOperationPromises.push(
       ...cleanupVitestConfig(vitestConfig, VITEST_CONFIG_PATH)
     );
