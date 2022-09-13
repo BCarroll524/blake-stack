@@ -1,4 +1,4 @@
-# Remix Indie Stack
+# Remix Blake Stack
 
 ![The Remix Blake Stack](https://res.cloudinary.com/solin-fitness/image/upload/v1663053906/blake-stack-background_ju3kdm.jpg)
 
